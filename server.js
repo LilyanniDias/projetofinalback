@@ -15,6 +15,8 @@ app.use(cors({
     origin: 'http://localhost:4200' 
 })); 
 app.use(express.json()); 
+app.use('/api/rotinas', require('./routes/rotinas'));
+
 
 
 // --- 3. ROTA DE CADASTRO/REGISTRO (/api/auth/register) ---
