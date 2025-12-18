@@ -1,7 +1,6 @@
 // Onde: pelenativa-backend/server.js
 
 const express = require('express');
-const mysql = require('mysql2/promise'); 
 const cors = require('cors');
 const bcrypt = require('bcryptjs'); 
 
@@ -9,27 +8,7 @@ const app = express();
 const port = 3000;
 const saltRounds = 10;
 
-// --- 1. CONFIGURAÇÃO DO BANCO DE DADOS ---
-const dbConfig = {
-    host: 'localhost',
-    user: 'root',
-    password: '',
-    database: 'pelenativa'
-};
-
-let dbConnection;
-
-async function connectToDb() {
-    try {
-        dbConnection = await mysql.createConnection(dbConfig);
-        console.log('Conexão com o MySQL (via XAMPP) estabelecida com sucesso!');
-    } catch (error) {
-        console.error('Erro ao conectar ao MySQL:', error.message);
-        process.exit(1); 
-    }
-}
-
-connectToDb();
+const dbConnection = require('./database');
 
 // --- 2. MIDDLEWARES ---
 app.use(cors({
@@ -136,4 +115,4 @@ app.get('/api/ativos', async (req, res) => {
 // --- 6. INICIALIZA O SERVIDOR ---
 app.listen(port, () => {
     console.log(`Servidor de Backend rodando em http://localhost:${port}`);
-});
+});app.use('/api/favorites', require('./routes/favorites'));
