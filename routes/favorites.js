@@ -1,6 +1,6 @@
 const express = require('express');
 const router = express.Router();
-const db = require('../database'); // Assumindo que você tem um arquivo database.js para conexão
+const db = require('../database');
 
 // Rota para obter todos os favoritos de um usuário específico
 router.get('/:userId', async (req, res) => {
@@ -20,12 +20,19 @@ router.get('/:userId', async (req, res) => {
 // Rota para adicionar um favorito
 router.post('/', async (req, res) => {
     const { userId, assetId } = req.body;
+
+    // ADIÇÃO DE SEGURANÇA: Verifica se os campos foram enviados
+    if (!userId || !assetId) {
+        return res.status(400).json({ message: 'UserId e AssetId são obrigatórios.' });
+    }
+
     try {
         // Verifica se o favorito já existe
         const [existing] = await db.execute(
             'SELECT * FROM favoritos WHERE user_id = ? AND asset_id = ?',
             [userId, assetId]
         );
+        
         if (existing.length > 0) {
             return res.status(409).json({ message: 'Este item já está nos favoritos.' });
         }

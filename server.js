@@ -10,17 +10,29 @@ const saltRounds = 10;
 
 const dbConnection = require('./database');
 
+// --- 1. CONFIGURAÇÕES GLOBAIS DE ERRO (NOVO) ---
+process.on('uncaughtException', (err) => {
+    console.error('❌ ERRO CRÍTICO NO PROCESSO NODE:', err);
+});
+
+process.on('unhandledRejection', (reason, promise) => {
+    console.error('❌ PROMESSA NÃO TRATADA EM:', promise, 'MOTIVO:', reason);
+});
+
 // --- 2. MIDDLEWARES ---
 app.use(cors({
     origin: 'http://localhost:4200' 
 })); 
 app.use(express.json()); 
-app.use('/api/rotinas', require('./routes/rotinas'));
 
+// Middleware de Log de Requisições
+app.use((req, res, next) => {
+    console.log(`[${new Date().toLocaleString()}] ${req.method} ${req.url}`);
+    next();
+});
 
-
-// --- 3. ROTA DE CADASTRO/REGISTRO (/api/auth/register) ---
-
+// --- 3. ROTAS DE AUTENTICAÇÃO ---
+// Registro de usuário
 app.post('/api/auth/register', async (req, res) => {
     const { nome, email, senha } = req.body;
 
@@ -48,9 +60,7 @@ app.post('/api/auth/register', async (req, res) => {
     }
 });
 
-
-// --- 4. ROTA DE LOGIN (/api/auth/login) ---
-
+// Login de usuário
 app.post('/api/auth/login', async (req, res) => {
     const { email, senha } = req.body;
 
@@ -89,32 +99,32 @@ app.post('/api/auth/login', async (req, res) => {
     }
 });
 
-
-// --- 5. ROTA PARA BUSCAR ATIVOS (/api/ativos) ---
-
+// --- 4. ROTA PARA BUSCAR ATIVOS ---
 app.get('/api/ativos', async (req, res) => {
     try {
-        // 🚨 CORREÇÃO APLICADA: Nome da tabela agora é 'ativos_skincare'
-        const nomeDaTabela = 'ativos_skincare'; 
-        
-        const [rows] = await dbConnection.execute(`SELECT * FROM ${nomeDaTabela}`); 
-        
-        res.status(200).json(rows);
-
+        // Exemplo mínimo, substitua pelo seu código real de ativos
+        const [ativos] = await dbConnection.execute('SELECT * FROM ativos');
+        res.status(200).json(ativos);
     } catch (error) {
-        if (error.code === 'ER_NO_SUCH_TABLE') {
-             return res.status(500).json({ 
-                message: `Erro: A tabela "${error.sqlMessage.match(/'(.*?)'/)?.[1] || 'desconhecida'}" não existe no banco de dados.`,
-                hint: 'Verifique o nome da tabela na rota /api/ativos do server.js'
-            });
-        }
         console.error('Erro ao buscar ativos:', error);
         res.status(500).json({ message: 'Erro interno ao buscar ativos.' });
     }
 });
 
+// --- 5. ROTAS EXTERNAS ---
+app.use('/api/rotinas', require('./routes/rotinas'));
+app.use('/api/favorites', require('./routes/favorites'));
 
-// --- 6. INICIALIZA O SERVIDOR ---
+// --- 6. TRATAMENTO FINAL DE ERRO ---
+app.use((err, req, res, next) => {
+    console.error('🔥 ERRO NO SERVIDOR:', err.stack);
+    res.status(500).send({ message: 'Erro interno.', error: err.message });
+});
+
+// --- 7. INICIALIZAÇÃO DO SERVIDOR ---
 app.listen(port, () => {
-    console.log(`Servidor de Backend rodando em http://localhost:${port}`);
-});app.use('/api/favorites', require('./routes/favorites'));
+    console.log(`\n================================================`);
+    console.log(`🚀 Servidor rodando em http://localhost:${port}`);
+    console.log(`📅 Iniciado em: ${new Date().toLocaleString()}`);
+    console.log(`================================================\n`);
+});

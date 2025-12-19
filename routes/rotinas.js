@@ -2,87 +2,56 @@ const express = require('express');
 const router = express.Router();
 const db = require('../database');
 
-const etapasObrigatorias = ['limpeza','tratamento','hidratacao','protecao'];
-
 router.post('/', async (req, res) => {
+    console.log("--- DADOS RECEBIDOS DO FRONT ---");
+    console.log(JSON.stringify(req.body, null, 2));
+
     const { userId, nome, etapas } = req.body;
 
-    // 🔒 valida etapas obrigatórias
-    for (let e of etapasObrigatorias) {
-        if (!etapas[e] || etapas[e].length === 0) {
-            return res.status(400).json({ message: `Etapa ${e} é obrigatória.` });
-        }
-        if (etapas[e].length > 5) {
-            return res.status(400).json({ message: `Máx. 5 ativos na etapa ${e}.` });
-        }
-    }
-
-    // 🔥 valida incompatibilidades
-    const ativosSelecionados = Object.values(etapas).flat();
-
-    const [incomp] = await db.execute(
-        `SELECT * FROM incompatibilidades_ativos 
-         WHERE (ativo_id_1 IN (?) AND ativo_id_2 IN (?)) 
-            OR (ativo_id_2 IN (?) AND ativo_id_1 IN (?))`,
-        [ativosSelecionados, ativosSelecionados, ativosSelecionados, ativosSelecionados]
-    );
-
-    if (incomp.length > 0) {
-        return res.status(409).json({
-            message: 'Existem ativos incompatíveis na rotina.',
-            detalhes: incomp
-        });
+    // Proteção 1: Verifica se os dados básicos existem
+    if (!userId || !nome || !etapas) {
+        return res.status(400).json({ message: "Dados incompletos (userId, nome ou etapas ausentes)." });
     }
 
     try {
-        const [rotina] = await db.execute(
+        // 1. Inserir na tabela 'rotinas'
+        const [resRotina] = await db.execute(
             'INSERT INTO rotinas (user_id, nome) VALUES (?, ?)',
             [userId, nome]
         );
+        const rotinaId = resRotina.insertId;
 
-        const rotinaId = rotina.insertId;
+        // 2. Percorrer as etapas (limpeza, tratamento, etc.)
+        for (const nomeEtapa in etapas) {
+            const ativosIds = etapas[nomeEtapa];
 
-        for (const etapaNome of etapasObrigatorias) {
-            const [etapa] = await db.execute(
-                'INSERT INTO rotina_etapas (rotina_id, etapa) VALUES (?, ?)',
-                [rotinaId, etapaNome]
-            );
-
-            etapas[etapaNome].forEach(async (assetId, index) => {
-                await db.execute(
-                    `INSERT INTO rotina_etapa_ativos (etapa_id, asset_id, ordem)
-                     VALUES (?, ?, ?)`,
-                    [etapa.insertId, assetId, index + 1]
+            // Proteção 2: Só insere se a etapa tiver ativos selecionados e o nome da etapa for válido
+            if (Array.isArray(ativosIds) && ativosIds.length > 0 && nomeEtapa) {
+                
+                const [resEtapa] = await db.execute(
+                    'INSERT INTO rotina_etapas (rotina_id, etapa) VALUES (?, ?)',
+                    [rotinaId, String(nomeEtapa)] // Forçamos ser String para o MySQL não reclamar
                 );
-            });
+                const etapaId = resEtapa.insertId;
+
+                // 3. Inserir os ativos
+                for (const ativoId of ativosIds) {
+                    if (ativoId) { // Só insere se o ID do ativo não for nulo
+                        await db.execute(
+                            'INSERT INTO rotina_etapa_ativos (etapa_id, asset_id) VALUES (?, ?)',
+                            [etapaId, ativoId]
+                        );
+                    }
+                }
+            }
         }
 
-        res.status(201).json({ message: 'Rotina salva com sucesso!' });
+        res.status(201).json({ message: '✨ Rotina salva com sucesso!' });
 
     } catch (err) {
-        res.status(500).json({ message: 'Erro ao salvar rotina.' });
+        console.error('❌ ERRO NO BANCO:', err.sqlMessage || err.message);
+        res.status(500).json({ message: 'Erro interno ao salvar.', detalhe: err.message });
     }
-});
-
-router.get('/:userId', async (req, res) => {
-    const [rotinas] = await db.execute(
-        'SELECT * FROM rotinas WHERE user_id = ?',
-        [req.params.userId]
-    );
-    res.json(rotinas);
-});
-
-router.delete('/:rotinaId', async (req, res) => {
-    const [r] = await db.execute(
-        'DELETE FROM rotinas WHERE id = ?',
-        [req.params.rotinaId]
-    );
-
-    if (r.affectedRows === 0) {
-        return res.status(404).json({ message: 'Rotina não encontrada.' });
-    }
-
-    res.json({ message: 'Rotina removida.' });
 });
 
 module.exports = router;
