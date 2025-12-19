@@ -102,14 +102,26 @@ app.post('/api/auth/login', async (req, res) => {
 // --- 4. ROTA PARA BUSCAR ATIVOS ---
 app.get('/api/ativos', async (req, res) => {
     try {
-        // Exemplo mínimo, substitua pelo seu código real de ativos
-        const [ativos] = await dbConnection.execute('SELECT * FROM ativos');
+        // 🔎 Confirma qual banco o Node está usando
+        const [db] = await dbConnection.execute('SELECT DATABASE() AS banco');
+        console.log('Banco em uso:', db[0].banco);
+
+        // ✅ Força o uso do schema correto
+        const [ativos] = await dbConnection.execute(
+            'SELECT * FROM pelenativaa.ativos'
+        );
+
         res.status(200).json(ativos);
     } catch (error) {
         console.error('Erro ao buscar ativos:', error);
         res.status(500).json({ message: 'Erro interno ao buscar ativos.' });
     }
 });
+    app.get('/api/debug-db', async (req, res) => {
+        const [rows] = await dbConnection.execute('SELECT DATABASE() AS banco');
+        res.json(rows[0]);
+});
+
 
 // --- 5. ROTAS EXTERNAS ---
 app.use('/api/rotinas', require('./routes/rotinas'));
@@ -120,6 +132,16 @@ app.use((err, req, res, next) => {
     console.error('🔥 ERRO NO SERVIDOR:', err.stack);
     res.status(500).send({ message: 'Erro interno.', error: err.message });
 });
+// 🔍 DEBUG: ver conteúdo da tabela rotinas
+app.get('/api/debug-rotinas', async (req, res) => {
+  try {
+    const [rows] = await dbConnection.execute('SELECT * FROM rotinas');
+    res.json(rows);
+  } catch (error) {
+    res.status(500).json(error);
+  }
+});
+
 
 // --- 7. INICIALIZAÇÃO DO SERVIDOR ---
 app.listen(port, () => {
